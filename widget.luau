@@ -7,36 +7,41 @@ local showText = noctalia.getConfig("show_status_text") == true
 local pollSeconds = tonumber(noctalia.getConfig("poll_interval_seconds")) or 6
 local pollMs = math.max(pollSeconds, 3) * 1000
 
+local currentState = "unknown"
+
+local function renderWidget(glyph, glyphColor, text, tooltip)
+  local container = barWidget.isVertical() and ui.column or ui.row
+  local children = {
+    ui.glyph({ name = glyph, size = 15, color = glyphColor }),
+  }
+  if showText and text ~= "" then
+    table.insert(children, ui.label({ text = text, fontSize = 11, color = glyphColor }))
+  end
+
+  barWidget.setTooltip(tooltip)
+  barWidget.render(container({
+    gap = 6,
+    align = "center",
+    onClick = function()
+      noctalia.togglePanel("firomsa/restic:panel")
+    end,
+  }, children))
+end
+
 local function applyState(state)
+  currentState = state
   noctalia.state.set("restic_service_state", state)
 
   if state == "active" or state == "activating" then
-    barWidget.setGlyph("loader")
-    barWidget.setGlyphColor("primary")
-    if showText then
-      barWidget.setText(noctalia.tr("widget.text_running"))
-    else
-      barWidget.setText("")
-    end
-    barWidget.setTooltip(noctalia.tr("widget.running_tooltip"))
+    renderWidget("loader", "primary", noctalia.tr("widget.text_running"), noctalia.tr("widget.running_tooltip"))
   elseif state == "failed" then
-    barWidget.setGlyph("alert-triangle")
-    barWidget.setGlyphColor("error")
-    if showText then
-      barWidget.setText(noctalia.tr("widget.text_failed"))
-    else
-      barWidget.setText("")
-    end
-    barWidget.setTooltip(noctalia.tr("widget.failed_tooltip"))
+    renderWidget("alert-triangle", "error", noctalia.tr("widget.text_failed"), noctalia.tr("widget.failed_tooltip"))
   else
-    barWidget.setGlyph("cloud-check")
-    barWidget.setGlyphColor("on_surface")
-    barWidget.setText("")
-    barWidget.setTooltip(noctalia.tr("widget.idle_tooltip"))
+    renderWidget("cloud-check", "on_surface", "", noctalia.tr("widget.idle_tooltip"))
   end
 end
 
-local function checkStatus()
+function checkStatus()
   noctalia.runAsync("systemctl --user is-active " .. serviceName, function(_code, stdout, _stderr)
     local state = (stdout or ""):gsub("%s+", "")
     applyState(state)
@@ -52,16 +57,6 @@ function onClick()
   noctalia.togglePanel("firomsa/restic:panel")
 end
 
-function onRightClick()
-  noctalia.runAsync("systemctl --user start " .. serviceName, function(_code)
-    checkStatus()
-  end)
-end
-
 -- Initial render
-barWidget.setGlyph("cloud")
-barWidget.setGlyphColor("on_surface")
-barWidget.setText("")
-barWidget.setTooltip(noctalia.tr("widget.idle_tooltip"))
-
+renderWidget("cloud", "on_surface", "", noctalia.tr("widget.idle_tooltip"))
 checkStatus()

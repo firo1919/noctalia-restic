@@ -49,6 +49,10 @@ open_near_click = true
 id    = "widget"
 entry = "widget.luau"
 
+  [widget.actions]
+  left  = "exec noctalia msg panel-toggle firomsa/restic:panel"
+  right = "exec systemctl --user start restic-backup.service"
+
   [[widget.setting]]
   key             = "show_status_text"
   type            = "bool"
