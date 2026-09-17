@@ -42,8 +42,9 @@ local function applyState(state)
 end
 
 function checkStatus()
-  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(_code, stdout, _stderr)
-    local state = (stdout or ""):gsub("%s+", "")
+  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(res)
+    local out = (res and res.stdout) or ""
+    local state = out:gsub("%s+", "")
     applyState(state)
   end)
 end

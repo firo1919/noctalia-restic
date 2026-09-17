@@ -17,19 +17,30 @@ local function tr(key, args)
   return noctalia.tr(key, args)
 end
 
+local function cleanLogLine(raw)
+  -- Strip verbose hostname & PID prefix: "Sep 17 20:22:45 noone bash[901888]: message" -> "[20:22:45] message"
+  local time, msg = raw:match("^%a+%s+%d+%s+([%d:]+)%s+[%w_-]+%s+[^:]+:%s*(.*)$")
+  if time and msg then
+    return string.format("[%s] %s", time, msg)
+  end
+  return raw
+end
+
 local function refreshStatus()
-  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(_code, stdout, _stderr)
-    serviceState = (stdout or ""):gsub("%s+", "")
+  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(res)
+    local out = (res and res.stdout) or ""
+    serviceState = out:gsub("%s+", "")
     render()
   end)
 end
 
 local function refreshLogs()
-  noctalia.runAsync("journalctl --user -u " .. serviceName .. " -n 10 --no-pager", function(_code, stdout, _stderr)
+  noctalia.runAsync("journalctl --user -u " .. serviceName .. " -n 14 --no-pager", function(res)
     logLines = {}
-    if stdout ~= nil and stdout ~= "" then
-      for line in stdout:gmatch("[^\r\n]+") do
-        table.insert(logLines, line)
+    local out = (res and res.stdout) or ""
+    if out ~= "" then
+      for line in out:gmatch("[^\r\n]+") do
+        table.insert(logLines, cleanLogLine(line))
       end
     end
     render()
@@ -44,11 +55,12 @@ end
 local function triggerBackup()
   statusMessage = tr("panel.backup_started")
   render()
-  noctalia.runAsync("systemctl --user start " .. serviceName, function(code, _stdout, stderr)
-    if code == 0 then
+  noctalia.runAsync("systemctl --user start " .. serviceName, function(res)
+    if res and res.exitCode == 0 then
       noctalia.notifyInfo(tr("panel.title"), tr("panel.backup_started"))
     else
-      noctalia.notifyError(tr("panel.title"), stderr or "Failed to start backup service")
+      local err = (res and res.stderr ~= "") and res.stderr or "Failed to start backup service"
+      noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
   end)
@@ -63,14 +75,15 @@ local function unlockRepo()
   render()
 
   local cmd = string.format("restic unlock -r %s --password-command %q", repository, passwordCommand)
-  noctalia.runAsync(cmd, function(code, _stdout, stderr)
+  noctalia.runAsync(cmd, function(res)
     isWorking = false
-    if code == 0 then
+    if res and res.exitCode == 0 then
       statusMessage = tr("panel.unlocked_ok")
       noctalia.notifyInfo(tr("panel.title"), tr("panel.unlocked_ok"))
     else
       statusMessage = tr("panel.unlock_failed")
-      noctalia.notifyError(tr("panel.title"), stderr or tr("panel.unlock_failed"))
+      local err = (res and res.stderr ~= "") and res.stderr or tr("panel.unlock_failed")
+      noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
   end)
@@ -89,14 +102,15 @@ local function pruneRepo()
     repository,
     passwordCommand
   )
-  noctalia.runAsync(cmd, function(code, _stdout, stderr)
+  noctalia.runAsync(cmd, function(res)
     isWorking = false
-    if code == 0 then
+    if res and res.exitCode == 0 then
       statusMessage = tr("panel.prune_done")
       noctalia.notifyInfo(tr("panel.title"), tr("panel.prune_done"))
     else
       statusMessage = tr("panel.prune_failed")
-      noctalia.notifyError(tr("panel.title"), stderr or tr("panel.prune_failed"))
+      local err = (res and res.stderr ~= "") and res.stderr or tr("panel.prune_failed")
+      noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
   end)
@@ -225,7 +239,7 @@ function render()
       logItems,
       ui.label({
         text = "No recent logs",
-        fontSize = 10,
+        fontSize = 11,
         color = "on_surface_variant",
       })
     )
@@ -237,7 +251,6 @@ function render()
           text = line,
           fontSize = 10,
           color = "on_surface_variant",
-          maxLines = 1,
         })
       )
     end
@@ -245,9 +258,7 @@ function render()
 
   table.insert(
     children,
-    ui.scroll({ flexGrow = 1 }, {
-      ui.column({ gap = 3, align = "stretch" }, logItems),
-    })
+    ui.scroll({ flexGrow = 1, gap = 4 }, logItems)
   )
 
   panel.render(ui.column({ flexGrow = 1, gap = 12, align = "stretch" }, children))
