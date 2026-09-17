@@ -1,0 +1,9 @@
+# Noctalia development artifacts
+.cache/
+*.log
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,49 @@
+{
+  "settings": {
+    "password_command": {
+      "description": "Command used to retrieve the Restic repository encryption password (e.g. rbw get restic-pass)",
+      "label": "Password Command"
+    },
+    "poll_interval_seconds": {
+      "description": "How often to poll systemd for service status (in seconds)",
+      "label": "Poll Interval (Seconds)"
+    },
+    "repository": {
+      "description": "Restic repository location (e.g. rclone:EncryptedGoogleDrive:Backups or /mnt/backup)",
+      "label": "Repository Location"
+    },
+    "service_name": {
+      "description": "User systemd service running your backup script",
+      "label": "Systemd Service"
+    },
+    "show_status_text": {
+      "description": "Show status label next to the cloud icon on the bar",
+      "label": "Show Status Text on Bar"
+    }
+  },
+  "panel": {
+    "title": "Restic Cloud Backup",
+    "status_idle": "Idle / Ready",
+    "status_running": "Backup In Progress",
+    "status_failed": "Backup Failed",
+    "btn_backup_now": "Backup Now",
+    "btn_unlock": "Unlock Repo",
+    "btn_prune": "Prune Repo",
+    "btn_refresh": "Refresh",
+    "logs_title": "Recent Journal Logs",
+    "repo_label": "Target Repository",
+    "unlocked_ok": "Repository unlocked successfully!",
+    "unlock_failed": "Unlock failed",
+    "backup_started": "Backup service triggered via systemd.",
+    "prune_started": "Pruning repository in background...",
+    "prune_done": "Pruning finished successfully.",
+    "prune_failed": "Pruning failed."
+  },
+  "widget": {
+    "idle_tooltip": "Restic: Idle / Ready\nLeft-click: Open Panel\nRight-click: Run Backup",
+    "running_tooltip": "Restic: Backup currently in progress...",
+    "failed_tooltip": "Restic: Last backup failed! Click to inspect logs or unlock",
+    "text_running": "Backing up...",
+    "text_failed": "Backup Failed"
+  }
+}
