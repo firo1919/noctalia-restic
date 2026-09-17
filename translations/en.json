@@ -1,5 +1,9 @@
 {
   "settings": {
+    "enable_prune_action": {
+      "description": "Show the Prune button in the panel (disabled by default for safety to prevent accidental snapshot removal)",
+      "label": "Enable Prune Action"
+    },
     "password_command": {
       "description": "Command used to retrieve the Restic repository encryption password (e.g. rbw get restic-pass)",
       "label": "Password Command"
@@ -26,9 +30,12 @@
     "status_idle": "Idle / Ready",
     "status_running": "Backup In Progress",
     "status_failed": "Backup Failed",
+    "status_unknown": "Checking...",
     "btn_backup_now": "Backup Now",
     "btn_unlock": "Unlock Repo",
     "btn_prune": "Prune Repo",
+    "btn_confirm_prune": "Confirm Prune?",
+    "btn_cancel": "Cancel",
     "btn_refresh": "Refresh",
     "logs_title": "Recent Journal Logs",
     "repo_label": "Target Repository",

@@ -1,15 +1,18 @@
 --!nonstrict
 -- Restic control panel for Noctalia.
--- Provides live status, quick actions (Backup, Unlock, Prune), and journal tail.
+-- Provides live status, quick actions (Backup, Unlock, safe Prune guard), and journal tail.
 
-local serviceName = noctalia.getConfig("service_name") or "restic-backup.service"
-local repository = noctalia.getConfig("repository") or "rclone:EncryptedGoogleDrive:Backups"
-local passwordCommand = noctalia.getConfig("password_command") or "rbw get restic-pass"
+local serviceName = "restic-backup.service"
+local repository = "rclone:EncryptedGoogleDrive:Backups"
+local passwordCommand = "rbw get restic-pass"
+local enablePrune = false
 
 local serviceState = "unknown"
 local statusMessage = ""
 local logLines = {}
 local isWorking = false
+local pruneArmed = false
+local pruneArmedTicks = 0
 
 local render
 
@@ -31,7 +34,7 @@ local function refreshStatus()
     local out = (res and res.stdout) or ""
     serviceState = out:gsub("%s+", "")
     render()
-  end)
+  end, 10000)
 end
 
 local function refreshLogs()
@@ -40,11 +43,14 @@ local function refreshLogs()
     local out = (res and res.stdout) or ""
     if out ~= "" then
       for line in out:gmatch("[^\r\n]+") do
-        table.insert(logLines, cleanLogLine(line))
+        -- Skip systemd boot session dividers
+        if not line:match("^%-%-%s+Boot") and not line:match("^%s*$") then
+          table.insert(logLines, cleanLogLine(line))
+        end
       end
     end
     render()
-  end)
+  end, 15000)
 end
 
 local function refreshAll()
@@ -63,7 +69,7 @@ local function triggerBackup()
       noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
-  end)
+  end, 15000)
 end
 
 local function unlockRepo()
@@ -86,13 +92,24 @@ local function unlockRepo()
       noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
-  end)
+  end, 60000)
 end
 
 local function pruneRepo()
   if isWorking then
     return
   end
+
+  -- Safety guard: two-step confirmation
+  if not pruneArmed then
+    pruneArmed = true
+    pruneArmedTicks = 0
+    statusMessage = "Click Confirm to prune unneeded snapshots, or Cancel"
+    render()
+    return
+  end
+
+  pruneArmed = false
   isWorking = true
   statusMessage = tr("panel.prune_started")
   render()
@@ -113,7 +130,13 @@ local function pruneRepo()
       noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
-  end)
+  end, 60000)
+end
+
+local function cancelPrune()
+  pruneArmed = false
+  statusMessage = ""
+  render()
 end
 
 function render()
@@ -129,6 +152,8 @@ function render()
     stateText = tr("panel.status_failed")
     stateColor = "error"
     stateGlyph = "alert-triangle"
+  elseif serviceState == "unknown" then
+    stateText = tr("panel.status_unknown")
   end
 
   local children = {}
@@ -177,45 +202,77 @@ function render()
         ui.label({
           text = statusMessage,
           fontSize = 11,
-          color = "primary",
+          color = pruneArmed and "error" or "primary",
           flexGrow = 1,
         }),
       })
     )
   end
 
-  -- Action Buttons
+  -- Action Buttons Row
+  local actionButtons = {
+    ui.button({
+      text = tr("panel.btn_backup_now"),
+      glyph = "player-play",
+      variant = "primary",
+      onClick = triggerBackup,
+      flexGrow = 1,
+    }),
+    ui.button({
+      text = tr("panel.btn_unlock"),
+      glyph = "lock-open",
+      variant = "ghost",
+      onClick = unlockRepo,
+      flexGrow = 1,
+    }),
+  }
+
+  -- Only show prune if enabled in settings, with 2-step confirmation
+  if enablePrune then
+    if pruneArmed then
+      table.insert(
+        actionButtons,
+        ui.button({
+          text = tr("panel.btn_confirm_prune"),
+          glyph = "alert-triangle",
+          variant = "destructive",
+          onClick = pruneRepo,
+          flexGrow = 1,
+        })
+      )
+      table.insert(
+        actionButtons,
+        ui.button({
+          text = tr("panel.btn_cancel"),
+          glyph = "x",
+          variant = "ghost",
+          onClick = cancelPrune,
+        })
+      )
+    else
+      table.insert(
+        actionButtons,
+        ui.button({
+          text = tr("panel.btn_prune"),
+          glyph = "trash",
+          variant = "ghost",
+          onClick = pruneRepo,
+          flexGrow = 1,
+        })
+      )
+    end
+  end
+
   table.insert(
-    children,
-    ui.row({ gap = 6, align = "center" }, {
-      ui.button({
-        text = tr("panel.btn_backup_now"),
-        glyph = "player-play",
-        variant = "primary",
-        onClick = triggerBackup,
-        flexGrow = 1,
-      }),
-      ui.button({
-        text = tr("panel.btn_unlock"),
-        glyph = "lock-open",
-        variant = "ghost",
-        onClick = unlockRepo,
-        flexGrow = 1,
-      }),
-      ui.button({
-        text = tr("panel.btn_prune"),
-        glyph = "trash",
-        variant = "ghost",
-        onClick = pruneRepo,
-        flexGrow = 1,
-      }),
-      ui.button({
-        glyph = "refresh",
-        variant = "ghost",
-        onClick = refreshAll,
-      }),
+    actionButtons,
+    ui.button({
+      glyph = "refresh",
+      variant = "ghost",
+      onClick = refreshAll,
     })
   )
+
+  table.insert(children, ui.row({ gap = 6, align = "center" }, actionButtons))
 
   -- Logs Header
   table.insert(
@@ -265,15 +322,31 @@ function render()
 end
 
 function onOpen(_context)
+  -- Reload configuration dynamically whenever opened
+  serviceName = noctalia.getConfig("service_name") or "restic-backup.service"
+  repository = noctalia.getConfig("repository") or "rclone:EncryptedGoogleDrive:Backups"
+  passwordCommand = noctalia.getConfig("password_command") or "rbw get restic-pass"
+  enablePrune = noctalia.getConfig("enable_prune_action") == true
+
   statusMessage = ""
+  pruneArmed = false
   refreshAll()
 end
 
 function onClose()
   statusMessage = ""
+  pruneArmed = false
 end
 
 function update()
-  noctalia.setUpdateInterval(3000)
+  noctalia.setUpdateInterval(2500)
+  if pruneArmed then
+    pruneArmedTicks += 1
+    if pruneArmedTicks >= 4 then -- Auto-disarm after ~10 seconds
+      pruneArmed = false
+      statusMessage = ""
+      render()
+    end
+  end
   refreshStatus()
 end

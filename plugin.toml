@@ -1,11 +1,11 @@
 id           = "firomsa/restic"
 name         = "Restic Backup"
-version      = "0.1.0"
+version      = "0.1.1"
 plugin_api   = 14
 author       = "Firomsa"
 license      = "MIT"
 icon         = "cloud"
-description  = "Monitor and manage Restic cloud backups with live status, one-click backup, unlock, prune, and journal logs."
+description  = "Monitor and manage Restic cloud backups with live status, one-click backup, unlock, prune safety guard, and journal logs."
 dependencies = ["restic", "systemctl"]
 tags         = ["backup", "system", "utility", "cloud"]
 
@@ -31,6 +31,13 @@ type            = "string"
 label_key       = "settings.password_command.label"
 description_key = "settings.password_command.description"
 default         = "rbw get restic-pass"
+
+[[setting]]
+key             = "enable_prune_action"
+type            = "bool"
+label_key       = "settings.enable_prune_action.label"
+description_key = "settings.enable_prune_action.description"
+default         = false
 
 # ── Panel ─────────────────────────────────────────────────────────────────────
 
