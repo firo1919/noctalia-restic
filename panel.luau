@@ -263,5 +263,6 @@ function onClose()
 end
 
 function update()
+  noctalia.setUpdateInterval(3000)
   refreshStatus()
 end

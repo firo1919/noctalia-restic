@@ -43,11 +43,25 @@ local function checkStatus()
   end)
 end
 
--- Initial render & status check
+function update()
+  noctalia.setUpdateInterval(pollMs)
+  checkStatus()
+end
+
+function onClick()
+  noctalia.togglePanel("firomsa/restic:panel")
+end
+
+function onRightClick()
+  noctalia.runAsync("systemctl --user start " .. serviceName, function(_code)
+    checkStatus()
+  end)
+end
+
+-- Initial render
 barWidget.setGlyph("cloud")
 barWidget.setGlyphColor("on_surface")
 barWidget.setText("")
 barWidget.setTooltip(noctalia.tr("widget.idle_tooltip"))
 
 checkStatus()
-noctalia.setInterval(pollMs, checkStatus)
