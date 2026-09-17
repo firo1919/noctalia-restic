@@ -1,8 +1,8 @@
-id           = "firomsa/restic"
+id           = "firo1919/restic"
 name         = "Restic Backup"
 version      = "0.1.1"
 plugin_api   = 14
-author       = "Firomsa"
+author       = "firo1919"
 license      = "MIT"
 icon         = "cloud"
 description  = "Monitor and manage Restic cloud backups with live status, one-click backup, unlock, prune safety guard, and journal logs."
@@ -57,7 +57,7 @@ id    = "widget"
 entry = "widget.luau"
 
   [widget.actions]
-  left  = "exec noctalia msg panel-toggle firomsa/restic:panel"
+  left  = "exec noctalia msg panel-toggle firo1919/restic:panel"
   right = "exec systemctl --user start restic-backup.service"
 
   [[widget.setting]]

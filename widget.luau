@@ -23,7 +23,7 @@ local function renderWidget(glyph, glyphColor, text, tooltip)
     gap = 6,
     align = "center",
     onClick = function()
-      noctalia.togglePanel("firomsa/restic:panel")
+      noctalia.togglePanel("firo1919/restic:panel")
     end,
   }, children))
 end
@@ -42,9 +42,8 @@ local function applyState(state)
 end
 
 function checkStatus()
-  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(res)
-    local out = (res and res.stdout) or ""
-    local state = out:gsub("%s+", "")
+  noctalia.runAsync("systemctl --user is-active " .. serviceName, function(_code, stdout, _stderr)
+    local state = (stdout or ""):gsub("%s+", "")
     applyState(state)
   end)
 end
@@ -55,7 +54,7 @@ function update()
 end
 
 function onClick()
-  noctalia.togglePanel("firomsa/restic:panel")
+  noctalia.togglePanel("firo1919/restic:panel")
 end
 
 -- Initial render
