@@ -1,22 +1,30 @@
 --!nonstrict
 -- Restic control panel for Noctalia.
 -- Features:
--- 1. Multi-tab dashboard: Overview, Snapshots Browser, and Live Logs.
--- 2. Instant status reporting from ~/.local/state/restic-backup/status.json.
+-- 1. Multi-tab dashboard: Overview, Snapshots Browser, Live Logs, and Settings.
+-- 2. Instant status reporting from ~/.local/state/noctalia-restic/status.json.
 -- 3. Cached snapshot browser with non-destructive restore into ~/Restored/.
--- 4. Two-step safety armed confirmation on Prune.
+-- 4. Dynamic Systemd Generator: configure repository, sources, schedule, and generate units.
+-- 5. Two-step safety armed confirmation on Prune.
 
-local serviceName = "restic-backup.service"
+local serviceName = "noctalia-restic.service"
 local repository = "rclone:EncryptedGoogleDrive:Backups"
 local passwordCommand = "rbw get restic-pass"
 local enablePrune = false
 
-local activeTab = "overview" -- "overview" | "snapshots" | "logs"
+local activeTab = "overview" -- "overview" | "snapshots" | "logs" | "settings"
 local serviceState = "unknown"
 local statusMessage = ""
 local statusData = nil
 local snapshotsList = {}
 local logLines = {}
+local configData = nil
+
+-- Editable settings inputs
+local cfgRepo = ""
+local cfgPwdCmd = ""
+local cfgSources = ""
+local cfgPreset = "daily_03"
 
 local isWorking = false
 local isFetchingSnapshots = false
@@ -42,12 +50,31 @@ local function cleanLogLine(raw)
 end
 
 local function loadStatusFile()
-  local path = noctalia.expandPath("~/.local/state/restic-backup/status.json")
+  local path = noctalia.expandPath("~/.local/state/noctalia-restic/status.json")
   local raw = noctalia.readFile(path)
   if raw and raw ~= "" then
     local ok, data = pcall(noctalia.json.decode, raw)
     if ok and type(data) == "table" then
       statusData = data
+    end
+  end
+end
+
+local function loadConfigFile()
+  local path = noctalia.expandPath("~/.config/noctalia-restic/config.json")
+  local raw = noctalia.readFile(path)
+  if raw and raw ~= "" then
+    local ok, data = pcall(noctalia.json.decode, raw)
+    if ok and type(data) == "table" then
+      configData = data
+      cfgRepo = data.repository or repository
+      cfgPwdCmd = data.password_command or passwordCommand
+      if data.sources and type(data.sources) == "table" then
+        cfgSources = table.concat(data.sources, ", ")
+      end
+      if data.schedule and type(data.schedule) == "table" then
+        cfgPreset = data.schedule.preset or "daily_03"
+      end
     end
   end
 end
@@ -59,7 +86,7 @@ local function loadCachedSnapshots()
     local ok, data = pcall(noctalia.json.decode, raw)
     if ok and type(data) == "table" then
       snapshotsList = {}
-      for i = #data, 1, -1 do -- reverse: newest first
+      for i = #data, 1, -1 do
         table.insert(snapshotsList, data[i])
       end
     end
@@ -91,6 +118,7 @@ local function refreshLogs()
 end
 
 local function refreshAll()
+  loadConfigFile()
   loadCachedSnapshots()
   refreshStatus()
   refreshLogs()
@@ -153,6 +181,70 @@ local function restoreSnapshot(snapshotId)
     end
     render()
   end, 240000)
+end
+
+local function saveAndApplySettings()
+  local scriptPath = getHelperScriptPath()
+
+  -- Parse sources
+  local sourcesList = {}
+  for item in cfgSources:gmatch("[^,]+") do
+    local s = noctalia.string.trim(item)
+    if s ~= "" then
+      table.insert(sourcesList, s)
+    end
+  end
+  if #sourcesList == 0 then
+    sourcesList = { "~/Personal" }
+  end
+
+  local onCal = "*-*-* 03:00:00"
+  if cfgPreset == "daily_22" then
+    onCal = "*-*-* 22:00:00"
+  elseif cfgPreset == "every_6h" then
+    onCal = "00/6:00:00"
+  elseif cfgPreset == "manual" then
+    onCal = ""
+  end
+
+  local newCfg = {
+    version = 1,
+    repository = cfgRepo ~= "" and cfgRepo or repository,
+    password_command = cfgPwdCmd ~= "" and cfgPwdCmd or passwordCommand,
+    sources = sourcesList,
+    excludes = (configData and configData.excludes) or { "**/.cache", "**/node_modules" },
+    schedule = {
+      preset = cfgPreset,
+      on_calendar = onCal,
+      persistent = true,
+    },
+    retention = (configData and configData.retention) or {
+      keep_daily = 7,
+      keep_weekly = 4,
+      keep_monthly = 6,
+      auto_prune = false,
+    },
+  }
+
+  local payload = noctalia.json.encode(newCfg)
+  local cmd = 'python3 "' .. scriptPath .. '" set-config ' .. string.format("%q", payload)
+
+  statusMessage = "Saving settings & generating units..."
+  render()
+
+  noctalia.runAsync(cmd, function(res)
+    if res and res.stdout and res.stdout ~= "" then
+      local ok, data = pcall(noctalia.json.decode, res.stdout)
+      if ok and data.ok then
+        statusMessage = tr("panel.config_saved")
+        noctalia.notify("Restic Settings", tr("panel.config_saved"))
+        loadConfigFile()
+      else
+        statusMessage = "Failed to apply settings."
+      end
+    end
+    render()
+  end, 15000)
 end
 
 local function triggerBackup()
@@ -307,6 +399,17 @@ function render()
       end,
       flexGrow = 1,
     }),
+    ui.button({
+      text = tr("panel.tab_settings"),
+      glyph = "settings",
+      variant = (activeTab == "settings") and "primary" or "ghost",
+      fontSize = 11,
+      onClick = function()
+        activeTab = "settings"
+        render()
+      end,
+      flexGrow = 1,
+    }),
   }
   table.insert(children, ui.row({ gap = 4, align = "center" }, tabButtons))
 
@@ -325,7 +428,7 @@ function render()
     )
   end
 
-  -- Content based on active tab
+  -- Tab Contents
   if activeTab == "overview" then
     local overviewItems = {}
 
@@ -432,7 +535,6 @@ function render()
   elseif activeTab == "snapshots" then
     local snapItems = {}
 
-    -- Snapshots header with Refresh button
     table.insert(
       snapItems,
       ui.row({ align = "center", justify = "between" }, {
@@ -528,13 +630,125 @@ function render()
       children,
       ui.scroll({ flexGrow = 1, gap = 3 }, logItems)
     )
+
+  elseif activeTab == "settings" then
+    local settingsItems = {}
+
+    table.insert(
+      settingsItems,
+      ui.label({
+        text = tr("panel.settings_title"),
+        fontSize = 13,
+        fontWeight = "bold",
+        color = "on_surface",
+      })
+    )
+
+    -- Repository input
+    table.insert(settingsItems, ui.label({ text = tr("panel.repo_label"), fontSize = 11, color = "on_surface_variant" }))
+    table.insert(
+      settingsItems,
+      ui.input({
+        value = cfgRepo,
+        placeholder = "e.g. rclone:EncryptedGoogleDrive:Backups",
+        onChange = function(val)
+          cfgRepo = val
+        end,
+      })
+    )
+
+    -- Password Command input
+    table.insert(settingsItems, ui.label({ text = "Password Command", fontSize = 11, color = "on_surface_variant" }))
+    table.insert(
+      settingsItems,
+      ui.input({
+        value = cfgPwdCmd,
+        placeholder = "e.g. rbw get restic-pass",
+        onChange = function(val)
+          cfgPwdCmd = val
+        end,
+      })
+    )
+
+    -- Sources input
+    table.insert(settingsItems, ui.label({ text = tr("panel.settings_sources"), fontSize = 11, color = "on_surface_variant" }))
+    table.insert(
+      settingsItems,
+      ui.input({
+        value = cfgSources,
+        placeholder = "e.g. ~/Personal, ~/Documents",
+        onChange = function(val)
+          cfgSources = val
+        end,
+      })
+    )
+
+    -- Schedule presets
+    table.insert(settingsItems, ui.label({ text = tr("panel.settings_schedule"), fontSize = 11, color = "on_surface_variant" }))
+    local schedButtons = {
+      ui.button({
+        text = tr("panel.schedule_daily_03"),
+        variant = (cfgPreset == "daily_03") and "primary" or "ghost",
+        fontSize = 10,
+        onClick = function()
+          cfgPreset = "daily_03"
+          render()
+        end,
+      }),
+      ui.button({
+        text = tr("panel.schedule_daily_22"),
+        variant = (cfgPreset == "daily_22") and "primary" or "ghost",
+        fontSize = 10,
+        onClick = function()
+          cfgPreset = "daily_22"
+          render()
+        end,
+      }),
+      ui.button({
+        text = tr("panel.schedule_every_6h"),
+        variant = (cfgPreset == "every_6h") and "primary" or "ghost",
+        fontSize = 10,
+        onClick = function()
+          cfgPreset = "every_6h"
+          render()
+        end,
+      }),
+      ui.button({
+        text = tr("panel.schedule_manual"),
+        variant = (cfgPreset == "manual") and "primary" or "ghost",
+        fontSize = 10,
+        onClick = function()
+          cfgPreset = "manual"
+          render()
+        end,
+      }),
+    }
+    table.insert(settingsItems, ui.row({ gap = 4, align = "center" }, schedButtons))
+
+    table.insert(settingsItems, ui.separator())
+
+    -- Save Button
+    table.insert(
+      settingsItems,
+      ui.button({
+        text = tr("panel.btn_save_config"),
+        glyph = "device-floppy",
+        variant = "primary",
+        onClick = saveAndApplySettings,
+      })
+    )
+
+    table.insert(
+      children,
+      ui.scroll({ flexGrow = 1, gap = 8 }, settingsItems)
+    )
   end
 
   panel.render(ui.column({ flexGrow = 1, gap = 10, align = "stretch" }, children))
 end
 
 function onOpen(_context)
-  serviceName = noctalia.getConfig("service_name") or "restic-backup.service"
+  serviceName = noctalia.getConfig("service_name") or "noctalia-restic.service"
   repository = noctalia.getConfig("repository") or "rclone:EncryptedGoogleDrive:Backups"
   passwordCommand = noctalia.getConfig("password_command") or "rbw get restic-pass"
   enablePrune = noctalia.getConfig("enable_prune_action") == true

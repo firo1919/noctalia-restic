@@ -1,9 +1,9 @@
 --!nonstrict
 -- Restic status bar widget for Noctalia.
--- Monitors the user systemd service and reads ~/.local/state/restic-backup/status.json
+-- Monitors the user systemd service and reads ~/.local/state/noctalia-restic/status.json
 -- for instant, zero-network status reporting.
 
-local serviceName = noctalia.getConfig("service_name") or "restic-backup.service"
+local serviceName = noctalia.getConfig("service_name") or "noctalia-restic.service"
 local showText = noctalia.getConfig("show_status_text") == true
 local pollSeconds = tonumber(noctalia.getConfig("poll_interval_seconds")) or 6
 local pollMs = math.max(pollSeconds, 3) * 1000
@@ -13,7 +13,7 @@ local lastBackupHuman = "unknown"
 local isFailed = false
 
 local function loadStatusJson()
-  local path = noctalia.expandPath("~/.local/state/restic-backup/status.json")
+  local path = noctalia.expandPath("~/.local/state/noctalia-restic/status.json")
   local raw = noctalia.readFile(path)
   if raw and raw ~= "" then
     local ok, data = pcall(noctalia.json.decode, raw)

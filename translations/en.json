@@ -53,7 +53,18 @@
     "restoring": "Restoring snapshot non-destructively to ~/Restored...",
     "tab_overview": "Overview",
     "tab_snapshots": "Snapshots",
-    "tab_logs": "Logs"
+    "tab_logs": "Logs",
+    "tab_settings": "Settings",
+    "settings_title": "Backup Configuration",
+    "settings_sources": "Backup Sources",
+    "settings_schedule": "Automated Schedule",
+    "settings_retention": "Retention (Daily / Weekly / Monthly)",
+    "btn_save_config": "Save & Generate Systemd Units",
+    "config_saved": "Settings saved & systemd units re-applied!",
+    "schedule_daily_03": "Daily 03:00",
+    "schedule_daily_22": "Daily 22:00",
+    "schedule_every_6h": "Every 6h",
+    "schedule_manual": "Manual"
   },
   "widget": {
     "idle_tooltip": "Restic: Healthy\nLeft-click: Dashboard\nRight-click: Run Backup",
