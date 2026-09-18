@@ -7,6 +7,7 @@ Features:
 - Dynamically generates and manages systemd units (~/.config/systemd/user/noctalia-restic.{service,timer})
 - Caches cloud snapshots and performs safe non-destructive restores into ~/Restored/
 - Tracks zero-network status in ~/.local/state/noctalia-restic/status.json
+- Detects repository locks locally and via cloud query
 """
 
 import sys
@@ -279,6 +280,34 @@ def cmd_restore(snapshot_id):
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
 
+def cmd_check_lock():
+    # Fast check: recent journal logs for lock errors (0ms latency)
+    try:
+        j = subprocess.run(
+            ["journalctl", "--user", "-u", "noctalia-restic.service", "-n", "15", "--no-pager"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if "already locked" in j.stdout or "unable to create lock" in j.stdout:
+            print(json.dumps({"ok": True, "locked": True, "reason": "Repository lock error detected in recent logs"}))
+            return
+    except Exception:
+        pass
+
+    # Cloud query fallback (only if called directly)
+    cfg = load_config()
+    repo = cfg.get("repository", "")
+    pwd_cmd = cfg.get("password_command", "")
+    cmd = ["restic", "list", "locks", "-r", repo, "--password-command", pwd_cmd]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        locks = [line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith("repository ")]
+        is_locked = len(locks) > 0
+        print(json.dumps({"ok": True, "locked": is_locked, "locks": locks}))
+    except Exception as e:
+        print(json.dumps({"ok": False, "locked": False, "error": str(e)}))
+
 def cmd_status():
     if os.path.isfile(STATUS_FILE):
         try:
@@ -318,6 +347,8 @@ def main():
     elif subcmd == "restore":
         sid = sys.argv[2] if len(sys.argv) > 2 else ""
         cmd_restore(sid)
+    elif subcmd == "check-lock":
+        cmd_check_lock()
     elif subcmd == "status":
         cmd_status()
     elif subcmd == "get-config":

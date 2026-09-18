@@ -6,6 +6,7 @@
 -- 3. Cached snapshot browser with non-destructive restore into ~/Restored/.
 -- 4. Dynamic Systemd Generator: configure repository, sources, schedule, and generate units.
 -- 5. Two-step safety armed confirmation on Prune.
+-- 6. Dynamic Unlock Button: visible ONLY when repository is locked.
 
 local serviceName = "noctalia-restic.service"
 local repository = "rclone:EncryptedGoogleDrive:Backups"
@@ -19,6 +20,9 @@ local statusData = nil
 local snapshotsList = {}
 local logLines = {}
 local configData = nil
+
+-- Lock detection state
+local isLocked = false
 
 -- Editable settings inputs
 local cfgRepo = ""
@@ -93,6 +97,20 @@ local function loadCachedSnapshots()
   end
 end
 
+local function checkLockStatus()
+  local scriptPath = getHelperScriptPath()
+  local cmd = 'python3 "' .. scriptPath .. '" check-lock'
+  noctalia.runAsync(cmd, function(res)
+    if res and res.stdout and res.stdout ~= "" then
+      local ok, data = pcall(noctalia.json.decode, res.stdout)
+      if ok and type(data) == "table" then
+        isLocked = data.locked == true
+        render()
+      end
+    end
+  end, 25000)
+end
+
 local function refreshStatus()
   loadStatusFile()
   noctalia.runAsync("systemctl --user is-active " .. serviceName, function(res)
@@ -106,13 +124,22 @@ local function refreshLogs()
   noctalia.runAsync("journalctl --user -u " .. serviceName .. " -n 14 --no-pager", function(res)
     logLines = {}
     local out = (res and res.stdout) or ""
+    local foundLockInLog = false
     if out ~= "" then
       for line in out:gmatch("[^\r\n]+") do
         if not line:match("^%-%-%s+Boot") and not line:match("^%s*$") then
           table.insert(logLines, cleanLogLine(line))
         end
+        if line:find("already locked") or line:find("unable to create lock") then
+          foundLockInLog = true
+        end
       end
     end
+
+    if foundLockInLog then
+      isLocked = true
+    end
+
     render()
   end, 15000)
 end
@@ -122,6 +149,7 @@ local function refreshAll()
   loadCachedSnapshots()
   refreshStatus()
   refreshLogs()
+  checkLockStatus()
 end
 
 local function fetchCloudSnapshots()
@@ -188,7 +216,6 @@ end
 local function saveAndApplySettings()
   local scriptPath = getHelperScriptPath()
 
-  -- Parse sources
   local sourcesList = {}
   for item in cfgSources:gmatch("[^,]+") do
     local s = noctalia.string.trim(item)
@@ -253,7 +280,6 @@ end
 local function triggerBackup()
   statusMessage = tr("panel.backup_started")
   render()
-  -- Use --no-block so systemd queues the oneshot run without blocking the UI callback
   noctalia.runAsync("systemctl --user start --no-block " .. serviceName, function(res)
     if res and res.exitCode == 0 then
       noctalia.notify(tr("panel.title"), tr("panel.backup_started"))
@@ -279,6 +305,7 @@ local function unlockRepo()
   noctalia.runAsync(cmd, function(res)
     isWorking = false
     if res and res.exitCode == 0 then
+      isLocked = false
       statusMessage = tr("panel.unlocked_ok")
       noctalia.notify(tr("panel.title"), tr("panel.unlocked_ok"))
       noctalia.runAsync('notify-send "Restic Cloud Backup" "Repository unlocked successfully!" -a "Noctalia" 2>/dev/null || true')
@@ -346,7 +373,7 @@ function render()
     stateText = tr("panel.status_running")
     stateColor = "primary"
     stateGlyph = "loader"
-  elseif serviceState == "failed" or (statusData and statusData.status == "failed") then
+  elseif serviceState == "failed" or (statusData and statusData.status == "failed") or isLocked then
     stateText = tr("panel.status_failed")
     stateColor = "error"
     stateGlyph = "alert-triangle"
@@ -423,8 +450,21 @@ function render()
   }
   table.insert(children, ui.row({ gap = 4, align = "center" }, tabButtons))
 
-  -- Status banner
-  if statusMessage ~= "" then
+  -- Status / Alert banner
+  if isLocked then
+    table.insert(
+      children,
+      ui.row({ paddingH = 8, paddingV = 4, align = "center", gap = 6 }, {
+        ui.glyph({ name = "lock", size = 14, color = "error" }),
+        ui.label({
+          text = "Repository is locked. Click 'Unlock Repo' to clear the lock.",
+          fontSize = 11,
+          color = "error",
+          flexGrow = 1,
+        }),
+      })
+    )
+  elseif statusMessage ~= "" then
     table.insert(
       children,
       ui.row({ paddingH = 8, paddingV = 4 }, {
@@ -473,7 +513,7 @@ function render()
 
     table.insert(overviewItems, ui.separator())
 
-    -- Action Buttons
+    -- Action Buttons Row
     local actionButtons = {
       ui.button({
         text = tr("panel.btn_backup_now"),
@@ -482,14 +522,21 @@ function render()
         onClick = triggerBackup,
         flexGrow = 1,
       }),
-      ui.button({
-        text = tr("panel.btn_unlock"),
-        glyph = "lock-open",
-        variant = "ghost",
-        onClick = unlockRepo,
-        flexGrow = 1,
-      }),
     }
+
+    -- DYNAMIC UNLOCK: Render Unlock Repo ONLY when repository is locked!
+    if isLocked then
+      table.insert(
+        actionButtons,
+        ui.button({
+          text = tr("panel.btn_unlock"),
+          glyph = "lock-open",
+          variant = "destructive",
+          onClick = unlockRepo,
+          flexGrow = 1,
+        })
+      )
+    end
 
     if enablePrune then
       if pruneArmed then
