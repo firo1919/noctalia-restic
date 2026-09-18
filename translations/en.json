@@ -1,76 +1,81 @@
 {
-  "settings": {
-    "enable_prune_action": {
-      "description": "Show the Prune button in the panel (disabled by default for safety to prevent accidental snapshot removal)",
-      "label": "Enable Prune Action"
+    "settings": {
+        "enable_prune_action": {
+            "description": "Show the Prune button in the panel (disabled by default for safety to prevent accidental snapshot removal)",
+            "label": "Enable Prune Action"
+        },
+        "password_command": {
+            "description": "Command used to retrieve the Restic repository encryption password (e.g. rbw get restic-pass)",
+            "label": "Password Command"
+        },
+        "poll_interval_seconds": {
+            "description": "How often to poll systemd for service status (in seconds)",
+            "label": "Poll Interval (Seconds)"
+        },
+        "repository": {
+            "description": "Restic repository location (e.g. rclone:EncryptedGoogleDrive:Backups or /mnt/backup)",
+            "label": "Repository Location"
+        },
+        "service_name": {
+            "description": "User systemd service running your backup script",
+            "label": "Systemd Service"
+        },
+        "show_status_text": {
+            "description": "Show status label next to the cloud icon on the bar",
+            "label": "Show Status Text on Bar"
+        }
     },
-    "password_command": {
-      "description": "Command used to retrieve the Restic repository encryption password (e.g. rbw get restic-pass)",
-      "label": "Password Command"
+    "panel": {
+        "title": "Restic Cloud Backup",
+        "status_idle": "Idle / Ready",
+        "status_running": "Backup In Progress",
+        "status_failed": "Backup Failed",
+        "status_unknown": "Checking...",
+        "btn_backup_now": "Backup Now",
+        "btn_unlock": "Unlock Repo",
+        "btn_prune": "Prune Repo",
+        "btn_confirm_prune": "Confirm Prune?",
+        "btn_cancel": "Cancel",
+        "btn_refresh": "Refresh",
+        "btn_fetch_snapshots": "Refresh Cloud Snapshots",
+        "btn_restore": "Restore",
+        "logs_title": "Recent Journal Logs",
+        "snapshots_title": "Cloud Snapshots",
+        "no_snapshots": "No cached snapshots found. Click 'Refresh Cloud Snapshots' to fetch from cloud.",
+        "repo_label": "Target Repository",
+        "last_backup_label": "Last Backup",
+        "unlocked_ok": "Repository unlocked successfully!",
+        "unlock_failed": "Unlock failed",
+        "backup_started": "Backup started successfully.",
+        "prune_started": "Pruning repository in background...",
+        "prune_done": "Pruning finished successfully.",
+        "prune_failed": "Pruning failed.",
+        "restoring": "Restoring snapshot non-destructively to ~/Restored...",
+        "tab_overview": "Overview",
+        "tab_snapshots": "Snapshots",
+        "tab_logs": "Logs",
+        "tab_settings": "Settings",
+        "settings_title": "Backup Configuration",
+        "settings_sources": "Backup Sources",
+        "settings_schedule": "Automated Schedule",
+        "settings_retention": "Retention (Daily / Weekly / Monthly)",
+        "btn_save_config": "Save",
+        "config_saved": "Settings saved",
+        "schedule_daily_03": "Daily 03:00",
+        "schedule_daily_22": "Daily 22:00",
+        "schedule_every_6h": "Every 6h",
+        "schedule_manual": "Manual",
+        "stats_size": "Total Storage",
+        "stats_files": "Protected Files",
+        "stats_snapshots": "Snapshots",
+        "stats_encryption": "Encryption",
+        "graph_title": "Repository Size Trend"
     },
-    "poll_interval_seconds": {
-      "description": "How often to poll systemd for service status (in seconds)",
-      "label": "Poll Interval (Seconds)"
-    },
-    "repository": {
-      "description": "Restic repository location (e.g. rclone:EncryptedGoogleDrive:Backups or /mnt/backup)",
-      "label": "Repository Location"
-    },
-    "service_name": {
-      "description": "User systemd service running your backup script",
-      "label": "Systemd Service"
-    },
-    "show_status_text": {
-      "description": "Show status label next to the cloud icon on the bar",
-      "label": "Show Status Text on Bar"
+    "widget": {
+        "idle_tooltip": "Restic: Healthy\nLeft-click: Dashboard\nRight-click: Run Backup",
+        "running_tooltip": "Restic: Backup currently in progress...",
+        "failed_tooltip": "Restic: Last backup failed! Click to inspect logs or unlock",
+        "text_running": "Backing up...",
+        "text_failed": "Backup Failed"
     }
-  },
-  "panel": {
-    "title": "Restic Cloud Backup",
-    "status_idle": "Idle / Ready",
-    "status_running": "Backup In Progress",
-    "status_failed": "Backup Failed",
-    "status_unknown": "Checking...",
-    "btn_backup_now": "Backup Now",
-    "btn_unlock": "Unlock Repo",
-    "btn_prune": "Prune Repo",
-    "btn_confirm_prune": "Confirm Prune?",
-    "btn_cancel": "Cancel",
-    "btn_refresh": "Refresh",
-    "btn_fetch_snapshots": "Refresh Cloud Snapshots",
-    "btn_restore": "Restore",
-    "logs_title": "Recent Journal Logs",
-    "snapshots_title": "Cloud Snapshots",
-    "no_snapshots": "No cached snapshots found. Click 'Refresh Cloud Snapshots' to fetch from cloud.",
-    "repo_label": "Target Repository",
-    "last_backup_label": "Last Backup",
-    "unlocked_ok": "Repository unlocked successfully!",
-    "unlock_failed": "Unlock failed",
-    "backup_started": "Backup started successfully.",
-    "prune_started": "Pruning repository in background...",
-    "prune_done": "Pruning finished successfully.",
-    "prune_failed": "Pruning failed.",
-    "restoring": "Restoring snapshot non-destructively to ~/Restored...",
-    "tab_overview": "Overview",
-    "tab_snapshots": "Snapshots",
-    "tab_logs": "Logs",
-    "tab_settings": "Settings",
-    "settings_title": "Backup Configuration",
-    "settings_sources": "Backup Sources",
-    "settings_schedule": "Automated Schedule",
-    "settings_retention": "Retention (Daily / Weekly / Monthly)",
-    "btn_save_config": "Save & Generate Systemd Units",
-    "config_saved": "Settings saved & systemd units re-applied!",
-    "schedule_daily_03": "Daily 03:00",
-    "schedule_daily_22": "Daily 22:00",
-    "schedule_every_6h": "Every 6h",
-    "schedule_manual": "Manual"
-  },
-  "widget": {
-    "idle_tooltip": "Restic: Healthy\nLeft-click: Dashboard\nRight-click: Run Backup",
-    "running_tooltip": "Restic: Backup currently in progress...",
-    "failed_tooltip": "Restic: Last backup failed! Click to inspect logs or unlock",
-    "text_running": "Backing up...",
-    "text_failed": "Backup Failed"
-  }
 }

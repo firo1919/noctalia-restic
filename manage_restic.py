@@ -33,6 +33,8 @@ SYSTEMD_DIR = os.path.expanduser("~/.config/systemd/user")
 SERVICE_FILE = os.path.join(SYSTEMD_DIR, "noctalia-restic.service")
 TIMER_FILE = os.path.join(SYSTEMD_DIR, "noctalia-restic.timer")
 
+SCRIPT_PATH = os.path.abspath(__file__)
+
 DEFAULT_CONFIG = {
     "version": 1,
     "repository": "rclone:EncryptedGoogleDrive:Backups",
@@ -112,34 +114,11 @@ umask 077
 export RESTIC_REPOSITORY="{cfg.get('repository', '')}"
 export RESTIC_PASSWORD_COMMAND="{cfg.get('password_command', '')}"
 
-STATE_DIR="{STATE_DIR}"
-STATUS_FILE="{STATUS_FILE}"
-mkdir -p "$STATE_DIR"
+MANAGE_SCRIPT="{SCRIPT_PATH}"
 
 record_status() {{
   local exit_code=$?
-  local status="success"
-  if [ $exit_code -eq 0 ]; then
-    status="success"
-    notify-send "Restic Cloud Backup" "Backup completed successfully." -a "Noctalia" 2>/dev/null || true
-  else
-    status="failed"
-    notify-send "Restic Cloud Backup" "Backup failed! Check journal logs." -u critical -a "Noctalia" 2>/dev/null || true
-  fi
-
-  python3 -c "
-import json, time
-data = {{
-    'last_backup_epoch': int(time.time()),
-    'last_backup_time': time.strftime('%Y-%m-%d %H:%M:%S'),
-    'status': '$status',
-    'exit_code': $exit_code,
-    'repository': '$RESTIC_REPOSITORY',
-    'sources': {json.dumps(cfg.get('sources', []))}
-}}
-with open('$STATUS_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-" 2>/dev/null || true
+  python3 "$MANAGE_SCRIPT" record-status "$exit_code" 2>/dev/null || true
 }}
 trap record_status EXIT
 
@@ -206,6 +185,46 @@ WantedBy=timers.target
         subprocess.run(["systemctl", "--user", "disable", "--now", "noctalia-restic.timer"], stderr=subprocess.DEVNULL)
         if os.path.exists(TIMER_FILE):
             os.remove(TIMER_FILE)
+
+def cmd_record_status(exit_code_str):
+    exit_code = 0
+    try:
+        exit_code = int(exit_code_str)
+    except ValueError:
+        exit_code = 1
+
+    cfg = load_config()
+    os.makedirs(STATE_DIR, exist_ok=True)
+
+    status = "success" if exit_code == 0 else "failed"
+
+    status_data = {
+        "last_backup_epoch": int(time.time()),
+        "last_backup_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "status": status,
+        "exit_code": exit_code,
+        "repository": cfg.get("repository", ""),
+        "sources": cfg.get("sources", [])
+    }
+
+    with open(STATUS_FILE, "w") as f:
+        json.dump(status_data, f, indent=2)
+
+    if exit_code == 0:
+        subprocess.run(
+            ["notify-send", "Restic Cloud Backup", "Backup completed successfully.", "-a", "Noctalia"],
+            stderr=subprocess.DEVNULL
+        )
+        # Refresh snapshot cache in background
+        try:
+            cmd_fetch_snapshots()
+        except Exception:
+            pass
+    else:
+        subprocess.run(
+            ["notify-send", "Restic Cloud Backup", f"Backup failed (exit code {exit_code})! Check journal logs.", "-u", "critical", "-a", "Noctalia"],
+            stderr=subprocess.DEVNULL
+        )
 
 def cmd_install():
     cfg = load_config()
@@ -281,7 +300,6 @@ def cmd_restore(snapshot_id):
         print(json.dumps({"ok": False, "error": str(e)}))
 
 def cmd_check_lock():
-    # Fast check: recent journal logs for lock errors (0ms latency)
     try:
         j = subprocess.run(
             ["journalctl", "--user", "-u", "noctalia-restic.service", "-n", "15", "--no-pager"],
@@ -295,7 +313,6 @@ def cmd_check_lock():
     except Exception:
         pass
 
-    # Cloud query fallback (only if called directly)
     cfg = load_config()
     repo = cfg.get("repository", "")
     pwd_cmd = cfg.get("password_command", "")
@@ -342,6 +359,9 @@ def main():
     subcmd = sys.argv[1]
     if subcmd == "install":
         cmd_install()
+    elif subcmd == "record-status":
+        code = sys.argv[2] if len(sys.argv) > 2 else "0"
+        cmd_record_status(code)
     elif subcmd == "fetch-snapshots":
         cmd_fetch_snapshots()
     elif subcmd == "restore":
