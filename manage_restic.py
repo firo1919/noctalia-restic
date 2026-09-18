@@ -3,7 +3,7 @@
 Management & Generator Engine for Noctalia Restic Plugin (firo1919/restic).
 Features:
 - Reads/writes standard XDG configuration (~/.config/noctalia-restic/config.json)
-- Dynamically generates ~/.local/share/noctalia-restic/runner.sh
+- Dynamically generates ~/.local/share/noctalia-restic/runner.sh with notify-send alerts
 - Dynamically generates and manages systemd units (~/.config/systemd/user/noctalia-restic.{service,timer})
 - Caches cloud snapshots and performs safe non-destructive restores into ~/Restored/
 - Tracks zero-network status in ~/.local/state/noctalia-restic/status.json
@@ -73,14 +73,12 @@ def load_config():
         try:
             with open(CONFIG_FILE) as f:
                 data = json.load(f)
-            # Merge with defaults for any missing keys
             for k, v in DEFAULT_CONFIG.items():
                 if k not in data:
                     data[k] = v
             return data
         except Exception:
             pass
-    # Write default config
     with open(CONFIG_FILE, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
@@ -120,7 +118,14 @@ mkdir -p "$STATE_DIR"
 record_status() {{
   local exit_code=$?
   local status="success"
-  [[ $exit_code -eq 0 ]] || status="failed"
+  if [ $exit_code -eq 0 ]; then
+    status="success"
+    notify-send "Restic Cloud Backup" "Backup completed successfully." -a "Noctalia" 2>/dev/null || true
+  else
+    status="failed"
+    notify-send "Restic Cloud Backup" "Backup failed! Check journal logs." -u critical -a "Noctalia" 2>/dev/null || true
+  fi
+
   python3 -c "
 import json, time
 data = {{
@@ -193,11 +198,9 @@ WantedBy=timers.target
         with open(TIMER_FILE, "w") as f:
             f.write(timer_content)
 
-        # Reload and enable timer
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
         subprocess.run(["systemctl", "--user", "enable", "--now", "noctalia-restic.timer"], check=True)
     else:
-        # Manual only: disable timer if exists
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
         subprocess.run(["systemctl", "--user", "disable", "--now", "noctalia-restic.timer"], stderr=subprocess.DEVNULL)
         if os.path.exists(TIMER_FILE):

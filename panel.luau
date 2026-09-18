@@ -250,7 +250,8 @@ end
 local function triggerBackup()
   statusMessage = tr("panel.backup_started")
   render()
-  noctalia.runAsync("systemctl --user start " .. serviceName, function(res)
+  -- Use --no-block so systemd queues the oneshot run without blocking the UI callback
+  noctalia.runAsync("systemctl --user start --no-block " .. serviceName, function(res)
     if res and res.exitCode == 0 then
       noctalia.notifyInfo(tr("panel.title"), tr("panel.backup_started"))
     else
@@ -258,7 +259,7 @@ local function triggerBackup()
       noctalia.notifyError(tr("panel.title"), err)
     end
     refreshAll()
-  end, 15000)
+  end, 5000)
 end
 
 local function unlockRepo()

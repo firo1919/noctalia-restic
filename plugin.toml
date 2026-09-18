@@ -1,6 +1,6 @@
 id           = "firo1919/restic"
 name         = "Restic Backup"
-version      = "0.2.0"
+version      = "0.2.1"
 plugin_api   = 14
 author       = "firo1919"
 license      = "MIT"
@@ -58,7 +58,7 @@ entry = "widget.luau"
 
   [widget.actions]
   left  = "exec noctalia msg panel-toggle firo1919/restic:panel"
-  right = "exec systemctl --user start noctalia-restic.service"
+  right = "exec systemctl --user start --no-block noctalia-restic.service"
 
   [[widget.setting]]
   key             = "show_status_text"
