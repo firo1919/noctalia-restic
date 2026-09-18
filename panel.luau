@@ -170,10 +170,12 @@ local function restoreSnapshot(snapshotId)
       if ok and data.ok then
         statusMessage = data.message or "Restored successfully."
         noctalia.notify("Restic Restore", data.message or "Snapshot restored safely.")
+        noctalia.runAsync(string.format('notify-send "Restic Restore" %q -a "Noctalia" 2>/dev/null || true', data.message or "Snapshot restored safely."))
       else
         local err = (data and data.error) or "Restore failed"
         statusMessage = err
         noctalia.notifyError("Restic Restore", err)
+        noctalia.runAsync(string.format('notify-send "Restic Restore" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
       end
     else
       statusMessage = "Restore command timed out."
@@ -238,6 +240,7 @@ local function saveAndApplySettings()
       if ok and data.ok then
         statusMessage = tr("panel.config_saved")
         noctalia.notify("Restic Settings", tr("panel.config_saved"))
+        noctalia.runAsync('notify-send "Restic Settings" "Settings saved & systemd units re-applied!" -a "Noctalia" 2>/dev/null || true')
         loadConfigFile()
       else
         statusMessage = "Failed to apply settings."
@@ -253,10 +256,12 @@ local function triggerBackup()
   -- Use --no-block so systemd queues the oneshot run without blocking the UI callback
   noctalia.runAsync("systemctl --user start --no-block " .. serviceName, function(res)
     if res and res.exitCode == 0 then
-      noctalia.notifyInfo(tr("panel.title"), tr("panel.backup_started"))
+      noctalia.notify(tr("panel.title"), tr("panel.backup_started"))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" "Backup started successfully." -a "Noctalia" 2>/dev/null || true')
     else
       local err = (res and res.stderr ~= "") and res.stderr or "Failed to start backup service"
       noctalia.notifyError(tr("panel.title"), err)
+      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
     end
     refreshAll()
   end, 5000)
@@ -275,11 +280,13 @@ local function unlockRepo()
     isWorking = false
     if res and res.exitCode == 0 then
       statusMessage = tr("panel.unlocked_ok")
-      noctalia.notifyInfo(tr("panel.title"), tr("panel.unlocked_ok"))
+      noctalia.notify(tr("panel.title"), tr("panel.unlocked_ok"))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" "Repository unlocked successfully!" -a "Noctalia" 2>/dev/null || true')
     else
       statusMessage = tr("panel.unlock_failed")
       local err = (res and res.stderr ~= "") and res.stderr or tr("panel.unlock_failed")
       noctalia.notifyError(tr("panel.title"), err)
+      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
     end
     refreshAll()
   end, 60000)
@@ -312,11 +319,13 @@ local function pruneRepo()
     isWorking = false
     if res and res.exitCode == 0 then
       statusMessage = tr("panel.prune_done")
-      noctalia.notifyInfo(tr("panel.title"), tr("panel.prune_done"))
+      noctalia.notify(tr("panel.title"), tr("panel.prune_done"))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" "Pruning finished successfully." -a "Noctalia" 2>/dev/null || true')
     else
       statusMessage = tr("panel.prune_failed")
       local err = (res and res.stderr ~= "") and res.stderr or tr("panel.prune_failed")
       noctalia.notifyError(tr("panel.title"), err)
+      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
     end
     refreshAll()
   end, 90000)

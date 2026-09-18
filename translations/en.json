@@ -46,7 +46,7 @@
     "last_backup_label": "Last Backup",
     "unlocked_ok": "Repository unlocked successfully!",
     "unlock_failed": "Unlock failed",
-    "backup_started": "Backup service triggered via systemd.",
+    "backup_started": "Backup started successfully.",
     "prune_started": "Pruning repository in background...",
     "prune_done": "Pruning finished successfully.",
     "prune_failed": "Pruning failed.",
