@@ -41,6 +41,10 @@ local function tr(key, args)
   return noctalia.tr(key, args)
 end
 
+local function shellQuote(s)
+  return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
 local function getHelperScriptPath()
   return noctalia.pluginDir() .. "/manage_restic.py"
 end
@@ -176,7 +180,7 @@ end
 
 local function checkLockStatus()
   local scriptPath = getHelperScriptPath()
-  local cmd = 'python3 "' .. scriptPath .. '" check-lock'
+  local cmd = 'python3 ' .. shellQuote(scriptPath) .. ' check-lock'
   noctalia.runAsync(cmd, function(res)
     if res and res.stdout and res.stdout ~= "" then
       local ok, data = pcall(noctalia.json.decode, res.stdout)
@@ -238,7 +242,7 @@ local function fetchCloudSnapshots()
   render()
 
   local scriptPath = getHelperScriptPath()
-  local cmd = 'python3 "' .. scriptPath .. '" fetch-snapshots'
+  local cmd = 'python3 ' .. shellQuote(scriptPath) .. ' fetch-snapshots'
 
   noctalia.runAsync(cmd, function(res)
     isFetchingSnapshots = false
@@ -266,7 +270,7 @@ local function restoreSnapshot(snapshotId)
   render()
 
   local scriptPath = getHelperScriptPath()
-  local cmd = 'python3 "' .. scriptPath .. '" restore ' .. string.format("%q", snapshotId)
+  local cmd = 'python3 ' .. shellQuote(scriptPath) .. ' restore ' .. shellQuote(snapshotId)
 
   noctalia.runAsync(cmd, function(res)
     isWorking = false
@@ -275,12 +279,12 @@ local function restoreSnapshot(snapshotId)
       if ok and data.ok then
         statusMessage = data.message or "Restored successfully."
         noctalia.notify("Restic Restore", data.message or "Snapshot restored safely.")
-        noctalia.runAsync(string.format('notify-send "Restic Restore" %q -a "Noctalia" 2>/dev/null || true', data.message or "Snapshot restored safely."))
+        noctalia.runAsync('notify-send "Restic Restore" ' .. shellQuote(data.message or "Snapshot restored safely.") .. ' -a "Noctalia" 2>/dev/null || true')
       else
         local err = (data and data.error) or "Restore failed"
         statusMessage = err
         noctalia.notifyError("Restic Restore", err)
-        noctalia.runAsync(string.format('notify-send "Restic Restore" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
+        noctalia.runAsync('notify-send "Restic Restore" ' .. shellQuote(err) .. ' -u critical -a "Noctalia" 2>/dev/null || true')
       end
     else
       statusMessage = "Restore command timed out."
@@ -333,7 +337,7 @@ local function saveAndApplySettings()
   }
 
   local payload = noctalia.json.encode(newCfg)
-  local cmd = 'python3 "' .. scriptPath .. '" set-config ' .. string.format("%q", payload)
+  local cmd = 'python3 ' .. shellQuote(scriptPath) .. ' set-config ' .. shellQuote(payload)
 
   statusMessage = "Saving settings & generating units..."
   render()
@@ -364,7 +368,7 @@ local function triggerBackup()
     else
       local err = (res and res.stderr ~= "") and res.stderr or "Failed to start backup service"
       noctalia.notifyError(tr("panel.title"), err)
-      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" ' .. shellQuote(err) .. ' -u critical -a "Noctalia" 2>/dev/null || true')
     end
     refreshAll()
   end, 5000)
@@ -378,7 +382,7 @@ local function unlockRepo()
   statusMessage = "Unlocking repository..."
   render()
 
-  local cmd = string.format("restic unlock -r %s --password-command %q", repository, passwordCommand)
+  local cmd = "restic unlock -r " .. shellQuote(repository) .. " --password-command " .. shellQuote(passwordCommand)
   noctalia.runAsync(cmd, function(res)
     isWorking = false
     if res and res.exitCode == 0 then
@@ -390,7 +394,7 @@ local function unlockRepo()
       statusMessage = tr("panel.unlock_failed")
       local err = (res and res.stderr ~= "") and res.stderr or tr("panel.unlock_failed")
       noctalia.notifyError(tr("panel.title"), err)
-      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" ' .. shellQuote(err) .. ' -u critical -a "Noctalia" 2>/dev/null || true')
     end
     refreshAll()
   end, 60000)
@@ -414,11 +418,9 @@ local function pruneRepo()
   statusMessage = tr("panel.prune_started")
   render()
 
-  local cmd = string.format(
-    "restic forget -r %s --password-command %q --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune",
-    repository,
-    passwordCommand
-  )
+  local cmd = "restic forget -r " .. shellQuote(repository)
+    .. " --password-command " .. shellQuote(passwordCommand)
+    .. " --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune"
   noctalia.runAsync(cmd, function(res)
     isWorking = false
     if res and res.exitCode == 0 then
@@ -429,7 +431,7 @@ local function pruneRepo()
       statusMessage = tr("panel.prune_failed")
       local err = (res and res.stderr ~= "") and res.stderr or tr("panel.prune_failed")
       noctalia.notifyError(tr("panel.title"), err)
-      noctalia.runAsync(string.format('notify-send "Restic Cloud Backup" %q -u critical -a "Noctalia" 2>/dev/null || true', err))
+      noctalia.runAsync('notify-send "Restic Cloud Backup" ' .. shellQuote(err) .. ' -u critical -a "Noctalia" 2>/dev/null || true')
     end
     refreshAll()
   end, 90000)

@@ -11,6 +11,7 @@ Features:
 """
 
 import sys
+import shlex
 import os
 import json
 import time
@@ -95,8 +96,8 @@ def generate_runner_script(cfg):
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(STATE_DIR, exist_ok=True)
 
-    sources_str = " ".join([f'"{os.path.expanduser(s)}"' for s in cfg.get("sources", [])])
-    excludes_args = " ".join([f'--exclude="{e}"' for e in cfg.get("excludes", [])])
+    sources_str = " ".join([shlex.quote(os.path.expanduser(s)) for s in cfg.get("sources", [])])
+    excludes_args = " ".join([f'--exclude={shlex.quote(e)}' for e in cfg.get("excludes", [])])
 
     retention = cfg.get("retention", {})
     keep_daily = retention.get("keep_daily", 7)
@@ -111,8 +112,8 @@ def generate_runner_script(cfg):
 set -uo pipefail
 umask 077
 
-export RESTIC_REPOSITORY="{cfg.get('repository', '')}"
-export RESTIC_PASSWORD_COMMAND="{cfg.get('password_command', '')}"
+export RESTIC_REPOSITORY={shlex.quote(cfg.get('repository', ''))}
+export RESTIC_PASSWORD_COMMAND={shlex.quote(cfg.get('password_command', ''))}
 
 MANAGE_SCRIPT="{SCRIPT_PATH}"
 
